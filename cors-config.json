@@ -1,0 +1,12 @@
+[
+  {
+    "AllowedHeaders": ["*"],
+    "AllowedMethods": ["POST"],
+    "AllowedOrigins": [
+      "http://localhost:5500",
+      "https://<YOUR_VERCEL_DOMAIN>"
+    ],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3000
+  }
+]

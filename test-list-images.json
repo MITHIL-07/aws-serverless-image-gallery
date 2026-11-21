@@ -1,0 +1,13 @@
+{
+  "version": "2.0",
+  "routeKey": "GET /images",
+  "rawPath": "/images",
+  "headers": {},
+  "requestContext": {
+    "http": {
+      "method": "GET",
+      "path": "/images"
+    }
+  },
+  "isBase64Encoded": false
+}

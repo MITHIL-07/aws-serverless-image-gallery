@@ -1,0 +1,16 @@
+{
+  "version": "2.0",
+  "routeKey": "POST /upload-url",
+  "rawPath": "/upload-url",
+  "headers": {
+    "content-type": "application/json"
+  },
+  "requestContext": {
+    "http": {
+      "method": "POST",
+      "path": "/upload-url"
+    }
+  },
+  "body": "{\"contentType\":\"image/png\",\"size\":204800,\"title\":\"Lambda test image\"}",
+  "isBase64Encoded": false
+}

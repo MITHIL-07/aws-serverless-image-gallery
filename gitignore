@@ -1,0 +1,11 @@
+# Local config (contains your real API URL)
+frontend/config.js
+
+# Build output and tooling
+frontend/dist/
+node_modules/
+.vercel/
+
+# OS files
+.DS_Store
+Thumbs.db

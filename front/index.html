@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#232f3e" />
+  <title>Image Gallery | AWS Student Builders Group</title>
+  <meta name="description" content="Serverless image gallery built with S3, CloudFront, API Gateway, Lambda and DynamoDB." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <span class="brand">Serverless Gallery</span>
+      <span class="badge">AWS Student Builders Group - LJIET</span>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <h1>Share your pictures</h1>
+      <p class="lead">
+        Upload an image and it appears in the gallery below. Files go straight to Amazon S3
+        and are delivered securely.
+      </p>
+    </section>
+
+    <!-- Upload card -->
+    <section class="card" aria-labelledby="upload-title">
+      <h2 id="upload-title">Upload an image</h2>
+
+      <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Choose an image to upload">
+        <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp,image/gif" hidden />
+        <div id="drop-hint" class="drop-hint">
+          <strong>Tap or click to choose</strong>
+          <span>or drag and drop an image here</span>
+          <span class="small">JPG, PNG, WEBP or GIF, up to 5 MB</span>
+        </div>
+        <img id="preview" class="preview" alt="Preview of the selected image" hidden />
+      </div>
+
+      <div class="upload-row">
+        <input type="text" id="title-input" placeholder="Title (optional)" maxlength="80" aria-label="Image title" />
+        <button type="button" id="upload-btn" class="btn" disabled>Upload</button>
+      </div>
+
+      <div id="progress-wrap" class="progress-wrap" hidden>
+        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="progress-bar" class="progress-bar"></div>
+        </div>
+        <span id="progress-text" class="small">0%</span>
+      </div>
+
+      <p id="upload-status" class="status" role="status" aria-live="polite"></p>
+    </section>
+
+    <!-- Gallery -->
+    <section aria-labelledby="gallery-title">
+      <div class="gallery-head">
+        <h2 id="gallery-title">Gallery <span id="count" class="count"></span></h2>
+        <button type="button" id="refresh-btn" class="btn-secondary">Refresh</button>
+      </div>
+
+      <p id="gallery-status" class="status" role="status" aria-live="polite"></p>
+
+      <details id="diagnostics" class="diagnostics" hidden>
+        <summary>Technical details (send this when asking for help)</summary>
+        <pre id="diagnostics-text"></pre>
+      </details>
+
+      <div id="gallery" class="grid"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>Built with Amazon S3, API Gateway, AWS Lambda and DynamoDB. Hosted on Vercel.</p>
+  </footer>
+
+  <!-- Lightbox -->
+  <dialog id="lightbox" class="lightbox" aria-label="Image viewer">
+    <button type="button" id="lightbox-close" class="lightbox-close" aria-label="Close viewer">&times;</button>
+    <div class="lightbox-stage">
+      <button type="button" id="lightbox-prev" class="lightbox-nav prev" aria-label="Previous image">&#8249;</button>
+      <img id="lightbox-img" alt="" />
+      <button type="button" id="lightbox-next" class="lightbox-nav next" aria-label="Next image">&#8250;</button>
+    </div>
+    <p id="lightbox-caption" class="lightbox-caption"></p>
+    <p id="lightbox-counter" class="small"></p>
+  </dialog>
+
+  <script src="config.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

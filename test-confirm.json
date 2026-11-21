@@ -1,0 +1,16 @@
+{
+  "version": "2.0",
+  "routeKey": "POST /confirm",
+  "rawPath": "/confirm",
+  "headers": {
+    "content-type": "application/json"
+  },
+  "requestContext": {
+    "http": {
+      "method": "POST",
+      "path": "/confirm"
+    }
+  },
+  "body": "{\"id\":\"PASTE-THE-ID-FROM-TEST-UPLOAD-URL-HERE\"}",
+  "isBase64Encoded": false
+}
