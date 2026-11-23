@@ -1,6 +1,6 @@
 # 🖼 Serverless Image Upload & Gallery Application
 
-A serverless gallery web app. Visitors upload images, the files go **straight to a private Amazon S3 bucket** using a **pre-signed upload**, and The website itself is deployed on **Vercel**.
+A serverless gallery web app. Visitors upload images, the files go **straight to a private Amazon S3 bucket** using a **pre-signed upload**, and the images appear in a live gallery delivered through **Amazon CloudFront**. The website itself is deployed on **Vercel**.
 
 > **Level:** Intermediate  |  **Region used:** Asia Pacific (Mumbai) `ap-south-1`
 
@@ -35,6 +35,7 @@ A serverless gallery web app. Visitors upload images, the files go **straight to
 4. The browser uploads the file **directly to S3**. The image never passes through Lambda or API Gateway.
 5. The browser tells the API the upload is finished (`POST /confirm`). Lambda checks that the file really exists in S3 and saves it as uploaded in **DynamoDB**.
 6. The gallery loads the list (`GET /images`) and shows the pictures through **CloudFront** (fast and HTTPS).
+7. The uploader can **delete** their own images later (`POST /delete`). A secret delete token, kept in the uploader's browser, proves who uploaded the image.
 
 ---
 
@@ -57,10 +58,11 @@ Letting users upload files is risky and expensive if done the simple way.
 |---|---|
 | **Amazon S3** | Private bucket that stores the uploaded images |
 | **Amazon CloudFront** | HTTPS delivery of images, using Origin Access Control (OAC) |
-| **Amazon API Gateway (HTTP API)** | Public API with three routes, CORS, and throttling |
-| **AWS Lambda** | Creates pre-signed uploads, confirms uploads, lists images |
+| **Amazon API Gateway (HTTP API)** | Public API with four routes, CORS, and throttling |
+| **AWS Lambda** | Creates pre-signed uploads, confirms uploads, lists and deletes images |
 | **Amazon DynamoDB** | Stores image metadata (id, title, key, size, status, dates) |
 | **AWS IAM** | Least-privilege role for Lambda |
+| **Amazon CloudWatch** | Lambda logs |
 | **Vercel** | Hosts the website (static HTML, CSS, JS) |
 | **GitHub** | Source code, connected to Vercel for automatic deployments |
 
@@ -93,6 +95,7 @@ Vercel (website)
    ├─ upload file ──────► S3 (private bucket)          [directly from the browser]
    ├─ POST /confirm ────► API Gateway ─► Lambda ─► (checks S3, marks item "uploaded")
    ├─ GET /images ──────► API Gateway ─► Lambda ─► DynamoDB
+   ├─ POST /delete ─────► API Gateway ─► Lambda ─► (checks the delete token, removes the file from S3 and the record from DynamoDB)
    └─ show images ──────► CloudFront ─► S3 (via Origin Access Control)
 ```
 
@@ -107,6 +110,7 @@ Vercel (website)
 | `POST /upload-url` | Validates `contentType` and `size`, creates a unique key like `uploads/<uuid>.png`, saves a **pending** item, and returns a pre-signed POST |
 | `POST /confirm` | Checks the object exists in S3, then marks the item **uploaded** |
 | `GET /images` | Returns uploaded images, newest first, with CloudFront URLs |
+| `POST /delete` | Deletes an image, but only if the request carries the secret delete token of that image |
 
 **Why a pre-signed POST?** S3 checks the upload against rules Lambda signed in advance:
 - the file type must match what was requested
@@ -117,6 +121,12 @@ Vercel (website)
 So the limits hold even if someone calls S3 without using your website.
 
 **Why a confirm step?** Anyone can ask for an upload link and never use it. The confirm step makes sure only images that really exist in S3 appear in the gallery. Unfinished "pending" items are never listed, and they can be removed automatically with DynamoDB TTL.
+
+**How can users delete their own images without a login?**
+- When an image is uploaded, Lambda creates a long random **delete token** and returns it **once**, to the uploader's browser. DynamoDB stores only a **hash** of it, never the token itself.
+- The browser keeps the token in `localStorage`. The website shows the 🗑 delete button (on the tile and in the viewer) **only for images whose token it holds**.
+- `POST /delete` checks the token against the stored hash. Without the right token, nothing is deleted (`403`), even if someone knows the image id and the API URL.
+- Limits: the right to delete lives in **one browser**. Clearing the browser data, or using another device, removes the delete buttons. Images uploaded before this feature have no token, so they can only be deleted from the AWS console. For accounts that work on any device, add Cognito login (see Future Improvements).
 
 **Item in DynamoDB:**
 
@@ -129,7 +139,8 @@ So the limits hold even if someone calls S3 without using your website.
   "size": 204800,
   "status": "uploaded",
   "createdAt": "2026-11-20T09:30:12+00:00",
-  "uploadedAt": "2026-11-20T09:30:15+00:00"
+  "uploadedAt": "2026-11-20T09:30:15+00:00",
+  "deleteTokenHash": "5f4dcc3b5aa765d61d8327deb882cf99..."
 }
 ```
 
@@ -169,7 +180,8 @@ aws-serverless-image-gallery/
 ├── tests/
 │   ├── test-upload-url.json
 │   ├── test-confirm.json
-│   └── test-list-images.json
+│   ├── test-list-images.json
+│   └── test-delete.json
 └── screenshots/
 ```
 
@@ -249,7 +261,7 @@ Wait until the distribution status is **Enabled** and no longer "Deploying" (a f
 2. Attach `GalleryApiPolicy` and `AWSLambdaBasicExecutionRole`.
 3. **Role name:** `GalleryApiLambdaRole` → **Create role**.
 
-> Lambda needs `s3:PutObject` even though the browser uploads the file. A pre-signed upload only works if the account that signed it is allowed to do the same action.
+> Lambda needs `s3:PutObject` even though the browser uploads the file. A pre-signed upload only works if the account that signed it is allowed to do the same action. The delete button also needs `s3:DeleteObject` and `dynamodb:DeleteItem`, which are already in the policy file.
 
 📸 *Add screenshot: `screenshots/04-iam-role.png`*
 
@@ -282,13 +294,14 @@ Wait until the distribution status is **Enabled** and no longer "Deploying" (a f
 
 1. **API Gateway → Create API → HTTP API → Build**.
 2. **Add integration → Lambda →** select `gallery-api`. **API name:** `gallery-api`. **Next**.
-3. **Routes:** remove the default route and add these three, all pointing to the `gallery-api` Lambda:
+3. **Routes:** remove the default route and add these four, all pointing to the `gallery-api` Lambda:
 
    | Method | Resource path |
    |---|---|
    | `POST` | `/upload-url` |
    | `POST` | `/confirm` |
    | `GET` | `/images` |
+   | `POST` | `/delete` |
 
 4. **Next** → keep the `$default` stage with **Auto-deploy** → **Next** → **Create**.
 5. Copy the **Invoke URL** into your notepad, for example `https://abc123xyz.execute-api.ap-south-1.amazonaws.com`. It has **no path** at the end.
@@ -385,6 +398,24 @@ PowerShell shows a `400 Bad Request` error for the failing calls. That is the co
 
 **CloudWatch → Log groups → `/aws/lambda/gallery-api`** → latest stream. Look for `Route: POST /upload-url`, `Confirmed image ...`, and `Returning N images`.
 
+### Test 8: Delete an image
+
+1. Open the website (the same browser you used to upload) and upload a test image with the title `delete me`.
+2. **Expected:** the new tile has a round 🗑 button in its top-right corner. Images you did not upload from this browser have **no** button.
+3. Click the 🗑 button. **Expected:** a popup asks *Delete this image?*
+4. Click **Cancel**. **Expected:** nothing changes.
+5. Click 🗑 again and then **Delete**. **Expected:** the tile disappears and a green *Image deleted.* message shows.
+6. Check AWS:
+   - **S3 → `uploads/`:** the file is gone (refresh the list)
+   - **DynamoDB → `GalleryImages`:** the item is gone
+7. **Viewer:** open one of your own images, then check the **Delete this image** button inside the viewer. It must not appear for images you did not upload.
+8. **Security check (PowerShell):** use the id of any image **and a wrong token**:
+   ```powershell
+   Invoke-RestMethod -Method Post -Uri "<API-URL>/delete" -ContentType "application/json" -Body '{"id":"<AN-IMAGE-ID>","deleteToken":"wrong-token"}'
+   ```
+   **Expected:** `403 Forbidden` and the image is still in the gallery. A missing token or a fake id gives `400`.
+9. **Other browser check:** open the site in another browser or a private window. **Expected:** the gallery shows the same images, but **no** delete buttons.
+
 ### Checklist
 
 | Test | Pass condition |
@@ -396,6 +427,7 @@ PowerShell shows a `400 Bad Request` error for the failing calls. That is the co
 | 5. Private bucket | S3 URL denied, CloudFront URL works |
 | 6. Negative tests | Rejected with clear errors |
 | 7. Logs | Route and confirm lines visible |
+| 8. Delete | Own image deleted from S3 and DynamoDB; wrong token gives 403; no buttons in another browser |
 
 📸 *Add screenshots: `screenshots/08-local-website.png`, `screenshots/09-s3-object.png`, `screenshots/10-dynamodb-item.png`, `screenshots/11-s3-access-denied.png`, `screenshots/12-cloudwatch-logs.png`*
 
@@ -470,10 +502,12 @@ The browser blocks requests until both AWS services trust your Vercel URL. Use t
 - ✅ **Random UUID file names**, so users cannot overwrite or guess other files.
 - ✅ **Server-side validation** of type and size (the browser checks too, but is never trusted).
 - ✅ **Confirm step** verifies the file exists before it is listed.
+- ✅ **Delete tokens:** only the uploader's browser can delete an image. Only a hash of the token is stored, and it is compared in constant time.
 - ✅ **Least-privilege IAM**, limited to one bucket prefix and one table.
 - ✅ **CORS restricted** to your own site addresses.
 - ✅ **Throttling** on the API to limit abuse.
 - ⚠️ This gallery has **no login**, so anyone with the site can upload. Share the link carefully, and delete the project after the workshop (see Future Improvements for authentication).
+- ⚠️ Delete tokens live in the browser's `localStorage`. Anyone with access to your browser profile can delete your images, and clearing browser data removes your delete rights.
 - ❌ Never commit AWS keys, `config.js`, or screenshots showing your account ID.
 
 ---
@@ -510,6 +544,11 @@ The browser blocks requests until both AWS services trust your Vercel URL. Use t
 | `AccessDenied` for DynamoDB in logs | Wrong account ID or table name in the policy | Fix the table ARN |
 | Page loads but the gallery is empty | Nothing uploaded yet, or uploads were never confirmed (only confirmed images are listed) | Upload an image and wait for **Upload complete!**. Test the API directly: open `<API-URL>/images` in a browser tab. You should see `{"images": [...]}` |
 | Gallery shows an error with **Technical details** | The page reports the exact cause (no response = CORS or wrong URL, 404 = missing route, 500 = Lambda error) | Open **Technical details**, follow the hint above it, and send the text when asking for help |
+| No 🗑 button on my image | The image was uploaded before the delete feature, from another browser, or browser data was cleared | Upload a new image from this browser. Old images can be deleted in the AWS console. |
+| Delete returns `403` *"only delete images you uploaded from this browser"* | The token in this browser does not match the image | Expected for other people's images. The button is removed automatically. |
+| Delete returns `500` or *Server error* | Lambda role lacks `s3:DeleteObject` or `dynamodb:DeleteItem` | Update `GalleryApiPolicy` with the new permissions and check the CloudWatch logs |
+| Delete returns *API route not found* / API Gateway `Not Found` | The `POST /delete` route was not added | Add route `POST /delete` and attach the `gallery-api` Lambda integration |
+| Delete route returns `Internal Server Error` and Lambda logs show nothing | API Gateway is not allowed to invoke Lambda for the new route | In the route, attach the Lambda integration again so the permission is created |
 | Page says "API URL is not configured" | `config.js` missing locally, or `API_URL` not set on Vercel | Create `config.js` from `config.example.js`, or add `API_URL` in Vercel and redeploy |
 | Vercel build fails: "API_URL environment variable is not set" | Variable missing | Add it under Project Settings → Environment Variables, then Redeploy |
 | Vercel shows 404 | Wrong Root or Output Directory | Root Directory `frontend`, Output Directory `dist` |
@@ -521,7 +560,7 @@ The browser blocks requests until both AWS services trust your Vercel URL. Use t
 ## 🔮 Future Improvements
 
 - 🔑 **Login with Amazon Cognito**, so only signed-in users can upload or delete their own images
-- 🗑 A protected **delete** endpoint
+- 👮 An **admin** page to remove images from any user
 - 🖼 **Thumbnails** generated by an S3-triggered Lambda
 - 🛡 **Moderation** with Amazon Rekognition to block unsafe images
 - 📄 **Pagination** and a DynamoDB index instead of a table scan
@@ -533,7 +572,8 @@ The browser blocks requests until both AWS services trust your Vercel URL. Use t
 ## 🎓 What You Will Learn
 
 - **Pre-signed URLs**, a core real-world AWS pattern
-- Keeping an S3 bucket **private** and serving files safely with **CloudFront and OAC**
+- Giving users limited rights with a secret **delete token**, instead of a full login
+- Keeping an S3 bucket **private** and serving files safely with **OAC**
 - Designing a small **serverless REST API**
 - Two kinds of **CORS** (API Gateway and S3)
 - **IAM least privilege** for S3 and DynamoDB
