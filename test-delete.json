@@ -1,0 +1,16 @@
+{
+  "version": "2.0",
+  "routeKey": "POST /delete",
+  "rawPath": "/delete",
+  "headers": {
+    "content-type": "application/json"
+  },
+  "requestContext": {
+    "http": {
+      "method": "POST",
+      "path": "/delete"
+    }
+  },
+  "body": "{\"id\":\"PASTE-THE-IMAGE-ID-HERE\",\"deleteToken\":\"PASTE-THE-DELETE-TOKEN-HERE\"}",
+  "isBase64Encoded": false
+}

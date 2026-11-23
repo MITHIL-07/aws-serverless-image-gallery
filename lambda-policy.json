@@ -1,0 +1,33 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PresignVerifyAndDeleteUploads",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::<YOUR_BUCKET_NAME>/uploads/*"
+    },
+    {
+      "Sid": "ListBucketSoHeadObjectReturnsNotFound",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::<YOUR_BUCKET_NAME>"
+    },
+    {
+      "Sid": "GalleryMetadata",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:PutItem",
+        "dynamodb:GetItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:Scan"
+      ],
+      "Resource": "arn:aws:dynamodb:ap-south-1:<YOUR_ACCOUNT_ID>:table/GalleryImages"
+    }
+  ]
+}
